@@ -1,10 +1,19 @@
 #include "eos.h"
 #include <string.h> //not sure how much this bloats the executable, maybe make my own
-
+#include "uart.h"
+bool runtasks = true;
 void task_init()
 {
+    runtasks = true;
     for (int i = 0; i < MAX_TASKS; i++)
         tasks[i].isTask = false; //not initialized yet
+}
+
+void task_disable(){
+    runtasks = false;
+}
+void task_enable(){
+    runtasks = true;
 }
 
 void tasks_init()
@@ -32,6 +41,8 @@ int add_task(task *t) //todo alias int to some better name
 }
 void timer_run()
 {
+    if(!runtasks)return;
+    //uart_write("some tasks!");
     for (int i = 0; i < MAX_TASKS; i++)
     {
         if (!tasks[i].isTask || !tasks[i].run)

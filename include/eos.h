@@ -2,6 +2,9 @@
 #define EOS_H
 #include "msp430.h"
 
+#define DCO_FREQ 16 * 1e6
+
+
 #define MAX_TASKS 4
 
 typedef void (*func)(void*);
@@ -33,10 +36,12 @@ void stop_task(int);
 void start_task(int);
 void remove_task(int);
 void configure_interval_task(int, int);
-
+void task_enable();
+void task_disable();
 void timer_init();
 void timer_run();
 void debugBlink();
-task tasks[MAX_TASKS];
 
+void delay(volatile int);
+task tasks[MAX_TASKS];
 #endif

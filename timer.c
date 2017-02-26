@@ -1,6 +1,5 @@
 #include "eos.h"
 
-#define DCO_FREQ 16 * 1e6
 #define TIMER_INTERVAL 10
 
 #define DIVIDER 8

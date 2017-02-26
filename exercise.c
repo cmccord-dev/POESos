@@ -34,24 +34,28 @@ void change_state(void *l)
         led_off(&green_led);
         led_on(&red_led);
         state = RED;
+        uart_write("Switching to red\r\n");
         break;
     case RED:
         configure_interval_task(state_task, 50);
         led_on(&green_led);
         led_on(&red_led);
         state = REDGREEN;
+        uart_write("Switching to green via yellow\r\n");
         break;
     case REDGREEN:
         configure_interval_task(state_task, 500);
         led_on(&green_led);
         led_off(&red_led);
         state = GREEN;
+        uart_write("Switching to green\r\n");
         break;
     case GREEN:
         configure_interval_task(state_task, 50);
         led_on(&green_led);
         led_on(&red_led);
         state = GREENRED;
+        uart_write("Switching to red via yellow\r\n");
         break;
     }
 }

@@ -6,7 +6,7 @@
 #define RXD BIT1
 
 #define BUFFER_SIZE 64
-
+#define BAUD 9600
 char rxb[BUFFER_SIZE];
 char txb[BUFFER_SIZE];
 
@@ -37,18 +37,20 @@ void uart_init(void)
 
     P1SEL |= RXD + TXD;  // P1.1 = RXD, P1.2=TXD
     P1SEL2 |= RXD + TXD; // P1.1 = RXD, P1.2=TXD
-    P1OUT &= 0x00;
+    P1OUT &= ~(TXD + RXD);
     P1DIR &= ~RXD;
+    P1DIR |= TXD;
 
     UCA0CTL1 = UCSSEL_2; // SMCLK
     UCA0CTL0 = 0x0;      // LSB
 
+    int n = 1666; //9600
     // BRCLK 16*10^6 BAUD = 9600 bps, N = BRCLK/BAUD
     // -> N = 1667  0x683
 
-    UCA0BR0 = 0x83;
-    UCA0BR1 = 0x6;
-    UCA0MCTL = UCBRS_6; // Modulation USBR6
+    UCA0BR0 = n & 0xFF;
+    UCA0BR1 = n >> 8;
+    UCA0MCTL = UCBRS1 | UCBRS2; // Modulation USBR6
 
     /*
 if (0) {
@@ -71,19 +73,25 @@ if (0) {
     //  __bis_SR_register(CPUOFF + GIE); // Enter LPM0 w/ int until Byte RXed
 }
 
+bool first = true;
+
 inline void UART_putc(byte c)
 {
-
     if (!UART_sending)
     {
+        // Clear interrupt flag
+        UC0IFG &= ~UCA0RXIFG;
         UART_sending = 1;
-        UCA0TXBUF = c;
         UC0IE |= UCA0TXIE; // enable TX interrupt
+        UCA0TXBUF = c;
     }
     else if (!TXFULL)
     {
         txb[txb_in] = c;
         txb_in = (txb_in + 1) % BUFFER_SIZE;
+    }
+    else
+    {
     }
     // otherwise c is lost...
 }
@@ -129,13 +137,15 @@ __attribute__((interrupt(USCIAB0RX_VECTOR))) void USCI0RX_ISR(void)
 {
 
     byte c;
+    //     P1OUT ^= BIT0; //Toggle red led
+
     if (UC0IFG & UCA0RXIFG)
     {
 
         __disable_interrupt();
-        IFG2 &= ~UCA0RXIFG; // Clear RX flag
-        c = UCA0RXBUF;      // Read byte
-        //P1OUT ^= BIT0; //Toggle red led
+        UC0IFG &= ~UCA0RXIFG; // Clear RX flag
+        c = UCA0RXBUF;        // Read byte
+        //P1OUT ^= BIT6; //Toggle red led
         if (!RXFULL)
         {
             rxb[rxb_in] = c;
@@ -145,27 +155,28 @@ __attribute__((interrupt(USCIAB0RX_VECTOR))) void USCI0RX_ISR(void)
     }
 }
 
-
 __attribute__((interrupt(USCIAB0TX_VECTOR))) void USCI0TX_ISR(void)
 {
-    //     if (IFG2 & UCA0TXIFG) {
-
-    __disable_interrupt();
-    if (TXEMPTY)
+    if (UC0IFG & UCA0TXIFG)
     {
-        // Stop TX interrupt
-        UC0IE &= ~UCA0RXIE;
-        UART_sending = 0;
-    }
-    else
-    {
-        //P1OUT ^= BIT0; //Toggle red led
 
-        UCA0TXBUF = txb[txb_out];
-        txb_out = (txb_out + 1) % BUFFER_SIZE;
-        //           UCA0TXBUF = 0xAA;
-    }
-    __enable_interrupt();
+        __disable_interrupt();
+        UC0IFG &= ~UCA0TXIFG;
 
-    //   }
+        if (TXEMPTY)
+        {
+            // Stop TX interrupt
+            UC0IE &= ~UCA0TXIE;
+            UART_sending = 0;
+        }
+        else
+        {
+            //P1OUT ^= BIT0; //Toggle red led
+
+            UCA0TXBUF = txb[txb_out];
+            txb_out = (txb_out + 1) % BUFFER_SIZE;
+            //           UCA0TXBUF = 0xAA;
+        }
+        __enable_interrupt();
+    }
 }

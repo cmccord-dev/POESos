@@ -9,7 +9,7 @@ void eos_init()
 {
     disable_watchdog(); //maybe later we can handle this appropriately..
     ports_init();
-    timer_init();       //could be done implicitly using a task but we'll put it here for now
+    timer_init(); //could be done implicitly using a task but we'll put it here for now
     task_init();
     uart_init();
 }
@@ -17,8 +17,13 @@ void eos_run()
 {
     tasks_init();
     __enable_interrupt();
+    uart_write("\r\nstarting!\r\n");
     while (1)
+    {
+        //uart_write("starting!");
+        //delay(32);
         LPM1;
+    }
 
     //LPM3;
 }
@@ -27,22 +32,25 @@ void eos_run()
 #define GREEN_LED BIT6
 void debugBlink()
 {
+    task_disable();
     P1DIR |= RED_LED | GREEN_LED; // Set P1.0,6 to output direction
 
     P1OUT = (P1OUT & ~RED_LED) | GREEN_LED;
     while (1)
     {
-        volatile unsigned int i; // volatile to prevent optimization
-        volatile unsigned int c;
         P1OUT ^= RED_LED | GREEN_LED; // Toggle P1.0,6 using exclusive-OR
+        delay(32);
+    }
+}
 
-        c = 32;
-        while (c--)
-        {              //i like longer delays...
-            i = 10000; // SW Delay
-            do
-                i--;
-            while (i != 0);
-        }
+void delay(volatile int c)
+{
+    volatile int i;
+    while (c--)
+    {              //i like longer delays...
+        i = 10000; // SW Delay
+        do
+            i--;
+        while (i != 0);
     }
 }
