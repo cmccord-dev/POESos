@@ -1,6 +1,6 @@
 #include "eos.h"
 
-#define TIMER_INTERVAL 10
+#define TIMER_INTERVAL 1 //1ms interval
 
 #define DIVIDER 8
 #define TMRC (DCO_FREQ / DIVIDER / 1000 * TIMER_INTERVAL)

@@ -31,7 +31,7 @@ void eos_run();
 
 void task_init();
 void tasks_init();
-int add_task(task *t);
+int add_task(task *t, int);
 void stop_task(int);
 void start_task(int);
 void remove_task(int);

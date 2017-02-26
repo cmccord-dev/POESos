@@ -6,6 +6,6 @@ void uart_init();
 
 void uart_write(char *);
 byte uart_read(char *, byte max);
-
+void uart_writei(unsigned int i);
 #endif // UART_H
 

@@ -2,63 +2,92 @@
 #include "led.h"
 #include "ports.h"
 #include "uart.h"
-enum state_t
-{
-    RED,
-    REDGREEN,
-    GREEN,
-    GREENRED,
-    BLINKING
-} state = BLINKING;
+#include "msp430.h"
+#define TEMP_SENSOR INCH_10
 
-int red_blink;
-int green_blink;
+int blink_task, temp_task;
 int btn_task;
-int state_task;
 bool btn_pressed;
 bool btn_last;
+bool blink = true;
 
-void blink_led(void *l)
+int tempval = 20;
+
+#define ADC_30 *((int *)(&TLV_ADC10_1_TAG + CAL_ADC_15T30))
+#define ADC_85 *((int *)(&TLV_ADC10_1_TAG + CAL_ADC_15T85))
+
+enum state_t
 {
-    led_toggle((led *)l);
+    READ_START,
+    READ_READ
+} state = READ_START;
+
+void blink_led(void *ptr)
+{
+    if (blink)
+    {
+        led_toggle(&red_led);
+        led_toggle(&green_led);
+    }
+    else
+    {
+        led_off(&red_led);
+        led_off(&green_led);
+    }
 }
-void change_state(void *l)
+void init_leds(void *ptr)
+{
+    led_init(&red_led);
+    led_init(&green_led);
+}
+void init_sensor(void *ptr)
+{
+    ADC10CTL0 = SREF_1 | REFON | ADC10ON | ADC10SHT_3;
+    ADC10CTL1 = TEMP_SENSOR | ADC10DIV_3;
+}
+
+int calc_f(int temp)
+{
+    return (temp - ADC_30) * (185 - 86) / (ADC_85 - ADC_30) + 86;
+}
+int calc_c(int temp)
+{
+    return (temp - ADC_30) * (85 - 30) / (ADC_85 - ADC_30) + 30;
+}
+void read_temp(void *ptr)
 {
     switch (state)
     {
-    case BLINKING:
-        stop_task(green_blink);
-        stop_task(red_blink);
-    case GREENRED:
-        configure_interval_task(state_task, 500);
-        led_off(&green_led);
-        led_on(&red_led);
-        state = RED;
-        uart_write("Switching to red\r\n");
+    case READ_START:
+        //ADC10CTL0 |= ENC | ADC10SC;
+        state = READ_READ;
+        configure_interval_task(temp_task, 1); //run read after 1ms
         break;
-    case RED:
-        configure_interval_task(state_task, 50);
-        led_on(&green_led);
-        led_on(&red_led);
-        state = REDGREEN;
-        uart_write("Switching to green via yellow\r\n");
-        break;
-    case REDGREEN:
-        configure_interval_task(state_task, 500);
-        led_on(&green_led);
-        led_off(&red_led);
-        state = GREEN;
-        uart_write("Switching to green\r\n");
-        break;
-    case GREEN:
-        configure_interval_task(state_task, 50);
-        led_on(&green_led);
-        led_on(&red_led);
-        state = GREENRED;
-        uart_write("Switching to red via yellow\r\n");
+    case READ_READ:
+        __delay_cycles(1000);
+        ADC10CTL0 |= ENC | ADC10SC;
+        while (ADC10CTL1 & BUSY)
+            ;
+        tempval = ADC10MEM;
+        ADC10CTL0 &= ~ENC;
+
+        uart_write("RAW: ");
+        uart_writei(tempval);
+        uart_write("\r\n");
+        int cval = calc_c(tempval);
+        int fval = calc_f(tempval);
+        uart_write("Current temperature: ");
+        uart_writei(cval);
+        uart_write("c (");
+        uart_writei(fval);
+        uart_write("f)\r\n");
+        state = READ_START;
+        configure_interval_task(temp_task, 999);
+        configure_interval_task(blink_task, 1000/cval);
         break;
     }
 }
+
 void check_button(void *b)
 {
     bool state = port_read((button *)b);
@@ -67,13 +96,7 @@ void check_button(void *b)
         if (btn_last == state && state == false)
         {
             btn_pressed = true;
-            if (state == RED)
-            {
-                configure_interval_task(state_task, 50);
-                led_on(&green_led);
-                led_on(&red_led);
-                state = REDGREEN;
-            }
+            blink = !blink;
         }
     }
     else
@@ -89,36 +112,22 @@ void check_button(void *b)
 void setup_tasks()
 {
     task t;
-    t.interval = 40; //in 10 ms
+    t.interval = 500; //in  ms
     t.task = blink_led;
-    t.data = &red_led;
-    t.init = (func)port_init;
-    red_blink = add_task(&t); //add_task copies the data so we can safely do this
+    t.data = NULL;
+    t.init = (func)init_leds;
+    blink_task = add_task(&t, 0); //add_task copies the data so we can safely do this
 
-    t.data = &green_led;
-    green_blink = add_task(&t);
-
-    t.interval = 2;
+    t.interval = 20;
     t.data = &btn1;
     t.task = check_button;
-    btn_task = add_task(&t);
+    t.init = (func)port_init;
+    btn_task = add_task(&t, 0);
 
-    t.interval = 500;
-    //t.interval = 30;
-    t.init = NULL;
-    t.data = &state;
-    t.task = change_state;
-    state_task = add_task(&t);
-
+    t.interval = 1; //in 10 ms
+    t.task = read_temp;
+    t.data = NULL;
+    t.init = (func)init_sensor;
+    temp_task = add_task(&t, 500); //add_task copies the data so we can safely do this
     //uart_write("Initialized...");
-}
-
-int main()
-{
-    eos_init();
-    setup_tasks();
-
-    eos_run();
-
-    return 1;
 }

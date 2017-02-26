@@ -54,3 +54,16 @@ void delay(volatile int c)
         while (i != 0);
     }
 }
+
+
+
+extern void setup_tasks();
+int main()
+{
+    eos_init();
+    setup_tasks();
+
+    eos_run();
+
+    return 1;
+}

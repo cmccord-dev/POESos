@@ -1,6 +1,8 @@
 #include "eos.h"
 #include <string.h> //not sure how much this bloats the executable, maybe make my own
 #include "uart.h"
+
+bool tasks_initialized = false;
 bool runtasks = true;
 void task_init()
 {
@@ -9,10 +11,12 @@ void task_init()
         tasks[i].isTask = false; //not initialized yet
 }
 
-void task_disable(){
+void task_disable()
+{
     runtasks = false;
 }
-void task_enable(){
+void task_enable()
+{
     runtasks = true;
 }
 
@@ -24,24 +28,28 @@ void tasks_init()
         if (tasks[i].isTask && tasks[i].init != NULL)
             tasks[i].init(tasks[i].data);
     }
+    tasks_initialized = true;
 }
-int add_task(task *t) //todo alias int to some better name
+int add_task(task *t, int startDelay) //todo alias int to some better name
 {
     t->isTask = true;
     t->run = true;
-    t->lastRun = t->interval;
+    t->lastRun = startDelay;
     for (int i = 0; i < MAX_TASKS; i++)
         if (!tasks[i].isTask)
         {
             memcpy(tasks + i, t, sizeof(task));
+            if (tasks_initialized)
+                tasks[i].init(tasks[i].data);
             return i;
         }
-
+    return -1;
     //todo: error here
 }
 void timer_run()
 {
-    if(!runtasks)return;
+    if (!runtasks)
+        return;
     //uart_write("some tasks!");
     for (int i = 0; i < MAX_TASKS; i++)
     {
@@ -49,8 +57,11 @@ void timer_run()
             continue;
         if (--tasks[i].lastRun > tasks[i].interval)
         {
-            tasks[i].lastRun = tasks[i].interval;
             tasks[i].task(tasks[i].data);
+            if (tasks[i].interval)
+                tasks[i].lastRun = tasks[i].interval;
+            else
+                remove_task(i);
         }
     }
 }
@@ -72,5 +83,5 @@ void remove_task(int t)
 void configure_interval_task(int t, int i)
 {
     tasks[t].interval = i;
-    tasks[t].lastRun = i;
+    //tasks[t].lastRun = i;
 }

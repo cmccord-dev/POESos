@@ -2,6 +2,8 @@
 #include "eos.h"
 #include "uart.h"
 
+//TODO: clean all this mess up
+
 #define TXD BIT2
 #define RXD BIT1
 
@@ -22,7 +24,7 @@ byte txb_out = 0;
 #define TXFULL (txb_in == ((txb_out - 1 + BUFFER_SIZE) % BUFFER_SIZE))
 #define TXEMPTY (txb_in == txb_out)
 
-byte UART_sending = 0;
+byte uart_sending = 0;
 
 void uart_init(void)
 {
@@ -75,13 +77,13 @@ if (0) {
 
 bool first = true;
 
-inline void UART_putc(byte c)
+inline void uart_putc(byte c)
 {
-    if (!UART_sending)
+    if (!uart_sending)
     {
         // Clear interrupt flag
         UC0IFG &= ~UCA0RXIFG;
-        UART_sending = 1;
+        uart_sending = 1;
         UC0IE |= UCA0TXIE; // enable TX interrupt
         UCA0TXBUF = c;
     }
@@ -96,7 +98,7 @@ inline void UART_putc(byte c)
     // otherwise c is lost...
 }
 
-inline byte UART_getc()
+inline byte uart_getc()
 {
     byte c;
     if (!RXEMPTY)
@@ -112,7 +114,7 @@ void uart_write(char *str)
 {
     while (*str)
     {
-        UART_putc(*str++);
+        uart_putc(*str++);
     }
 }
 
@@ -121,7 +123,7 @@ byte uart_read(char *str, byte max)
     byte count = 0;
     while (count < max)
     {
-        if (!(*str++ = UART_getc()))
+        if (!(*str++ = uart_getc()))
         {
             break;
         }
@@ -167,7 +169,7 @@ __attribute__((interrupt(USCIAB0TX_VECTOR))) void USCI0TX_ISR(void)
         {
             // Stop TX interrupt
             UC0IE &= ~UCA0TXIE;
-            UART_sending = 0;
+            uart_sending = 0;
         }
         else
         {
@@ -179,4 +181,18 @@ __attribute__((interrupt(USCIAB0TX_VECTOR))) void USCI0TX_ISR(void)
         }
         __enable_interrupt();
     }
+}
+
+void uart_writei_h(unsigned int i)
+{
+    if (i == 0)
+        return;
+    uart_writei_h(i / 10);
+    uart_putc('0' + i % 10);
+}
+void uart_writei(unsigned int i)
+{
+    uart_writei_h(i / 10);
+    uart_putc('0' + i % 10);
+    //uart_write("\r\n");
 }
